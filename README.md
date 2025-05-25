@@ -1,87 +1,57 @@
-# CSV/Excel Record Limiter GUI
+# CSV Editor - Portable Version
 
-A simple Python GUI tool to filter and limit rows from CSV or Excel files, with flexible column-based filtering and export.
+A portable application for filtering and updating CSV/Excel files.
 
----
+## Quick Start
+
+1. Download the latest release from the [Releases](https://github.com/yourusername/CSVEditor/releases) page
+2. Extract the ZIP file
+3. Double-click `run_csv_editor.bat` to start the application
+
+## Manual Setup (Alternative)
+
+If you prefer to set up manually:
+
+1. Download WinPython 3.10 64-bit from: https://winpython.github.io/
+2. Extract WinPython to this folder
+3. Install required dependencies by running:
+   ```
+   .\python-3.10.11.amd64\python.exe -m pip install openpyxl
+   ```
+4. Double-click `run_csv_editor.bat` to start the application
 
 ## Features
 
-- Supports both CSV (`.csv`) and Excel (`.xlsx`) files as input.
-- Lets you select which columns to filter on, and apply various conditions.
-- Real-time display of how many rows match your filters.
-- Output file type matches input file type (CSV in, CSV out; Excel in, Excel out).
-- Easy-to-use graphical interface.
-
----
+- Filter CSV/Excel files based on multiple conditions
+- Update values in CSV/Excel files
+- Support for both CSV and Excel (.xlsx) files
+- No installation required - just unzip and run!
 
 ## Requirements
 
-- Python 3.7 or newer
-- The following Python packages:
-  - `tkinter` (usually included with Python)
-  - `openpyxl` (for Excel file support)
-  - `pyinstaller` (for building a standalone executable)
+- Windows operating system
+- No Python installation required (included in the bundle)
+- No administrator rights required
 
----
+## Troubleshooting
 
-## Installation
+If you encounter any issues:
+1. Make sure WinPython is extracted to the same folder as the application
+2. Verify that openpyxl is installed by running the pip install command above
+3. Check that the Python version in run_csv_editor.bat matches your WinPython folder name
 
-1. **Clone or download this repository.**
+## Development
 
-2. **Install required packages:**
+The portable package is automatically built and released when a new version tag is pushed to the repository. To create a new release:
 
-   Open a terminal or command prompt and run:
-
-   ```sh
-   pip install openpyxl pyinstaller
+1. Update the version number in your code
+2. Create and push a new tag:
+   ```bash
+   git tag v1.0.0
+   git push origin v1.0.0
    ```
-
-   (If you only need CSV support, you can skip `openpyxl`.)
-
----
-
-## Usage
-
-### Run from source
-
-```sh
-python csv_limiter_gui.py
-```
-
-### Build a Standalone Executable
-
-To create a single-file Windows executable (no console window), run:
-
-```sh
-python -m PyInstaller --onefile --windowed --distpath "C:\Users\user\MyAppFolder" csv_limiter_gui.py
-```
-
-- The executable will be created in `C:\Users\user\MyAppFolder`.
-- You can change the `--distpath` to any folder you like.
-
----
-
-## How to Use
-
-1. **Open the app.**
-2. **Click "Browse..."** and select a CSV or Excel file.
-3. **Select columns to filter:**  
-   Use the dropdown to pick a column, click "Add", then set the condition and value. Repeat for more columns.
-4. **Set a row limit** (optional).
-5. **Check the real-time matching row count.**
-6. **Click "Process"** to save the filtered/limited file.  
-   The output file type will match your input file type.
-
----
-
-## Notes
-
-- If you select a file type other than `.csv` or `.xlsx`, the app will show an error.
-- For Excel support, you must have `openpyxl` installed.
-- The output file will always include all columns, but only rows matching your selected filters.
-
----
-
-## License
-
-MIT License
+3. The GitHub Action will automatically:
+   - Download WinPython
+   - Install dependencies
+   - Create the portable package
+   - Create a new release with the download link

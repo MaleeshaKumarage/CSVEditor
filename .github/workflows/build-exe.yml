@@ -1,34 +1,39 @@
-name: Build Windows EXE
+name: Build Portable Package
 
 on:
   push:
-    branches:
-      - main  # or 'master', or any branch you want to trigger on
+    tags:
+      - 'v*'
 
 jobs:
   build:
     runs-on: windows-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: Install dependencies
+      - name: Download WinPython
         run: |
-          python -m pip install --upgrade pip
-          pip install openpyxl pyinstaller
+          $url = "https://github.com/winpython/winpython/releases/download/3.10.11.0/Winpython64-3.10.11.0dot.exe"
+          $output = "WinPython.exe"
+          Invoke-WebRequest -Uri $url -OutFile $output
 
-      - name: Build EXE with PyInstaller
+      - name: Extract WinPython
         run: |
-          python -m PyInstaller --onefile --windowed --distpath dist csv_limiter_gui.py
+          Start-Process -FilePath "WinPython.exe" -ArgumentList "-y" -Wait
+          Rename-Item -Path "WPy64-31011" -NewName "python-3.10.11.amd64"
 
-      - name: Upload EXE as artifact
-        uses: actions/upload-artifact@v4
+      - name: Install Dependencies
+        run: |
+          .\python-3.10.11.amd64\python.exe -m pip install openpyxl
+
+      - name: Create Portable Package
+        run: |
+          Compress-Archive -Path "csv_limiter_gui.py", "run_csv_editor.bat", "README.md", "python-3.10.11.amd64" -DestinationPath "CSVEditor-Portable.zip"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
         with:
-          name: csv_limiter_gui_exe
-          path: dist/csv_limiter_gui.exe
+          files: CSVEditor-Portable.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

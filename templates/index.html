@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV/Excel Editor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .tab-content {
+            padding: 20px;
+            border: 1px solid #dee2e6;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+        }
+        .filter-row {
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+        }
+        .remove-btn {
+            color: #dc3545;
+            cursor: pointer;
+        }
+        .remove-btn:hover {
+            color: #bb2d3b;
+        }
+        .loading {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            z-index: 1000;
+        }
+        .loading-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1 class="text-center mb-4">CSV/Excel Editor</h1>
+        
+        <!-- File Upload Section -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Upload File</h5>
+                <form id="uploadForm" class="mb-3">
+                    <div class="input-group">
+                        <input type="file" class="form-control" id="fileInput" accept=".csv,.xlsx">
+                        <button class="btn btn-primary" type="submit">Upload</button>
+                    </div>
+                </form>
+                <div id="fileInfo" class="alert alert-info" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <ul class="nav nav-tabs" id="myTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="filter-tab" data-bs-toggle="tab" data-bs-target="#filter" type="button" role="tab">Filter Records</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="update-tab" data-bs-toggle="tab" data-bs-target="#update" type="button" role="tab">Update Values</button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="myTabContent">
+            <!-- Filter Tab -->
+            <div class="tab-pane fade show active" id="filter" role="tabpanel">
+                <div class="mb-3">
+                    <label class="form-label">Max Records (leave blank for all)</label>
+                    <input type="number" class="form-control" id="filterMaxRecords" min="1">
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex align-items-center mb-2">
+                        <select class="form-select me-2" id="filterColumnSelect" style="width: 200px;">
+                            <option value="">Select Column</option>
+                        </select>
+                        <button class="btn btn-secondary" onclick="addFilterRow()">Add Filter</button>
+                    </div>
+                    <div id="filterRows"></div>
+                </div>
+                <button class="btn btn-primary" onclick="processFilter()">Process</button>
+            </div>
+
+            <!-- Update Tab -->
+            <div class="tab-pane fade" id="update" role="tabpanel">
+                <div class="mb-3">
+                    <label class="form-label">Max Records (leave blank for all)</label>
+                    <input type="number" class="form-control" id="updateMaxRecords" min="1">
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex align-items-center mb-2">
+                        <select class="form-select me-2" id="updateColumnSelect" style="width: 200px;">
+                            <option value="">Select Column</option>
+                        </select>
+                        <button class="btn btn-secondary" onclick="addUpdateRow()">Add Update</button>
+                    </div>
+                    <div id="updateRows"></div>
+                </div>
+                <button class="btn btn-primary" onclick="processUpdate()">Process</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading" id="loading">
+        <div class="loading-content">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Processing...</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentFile = null;
+        const conditions = [
+            { value: '', label: 'No filter' },
+            { value: '==', label: 'Equals' },
+            { value: '>', label: 'Greater than' },
+            { value: '<', label: 'Less than' },
+            { value: '>=', label: 'Greater or equal' },
+            { value: '<=', label: 'Less or equal' },
+            { value: 'contains', label: 'Contains' },
+            { value: 'not contains', label: 'Not contains' }
+        ];
+
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select a file');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                showLoading();
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+
+                currentFile = data.filename;
+                document.getElementById('fileInfo').textContent = `File loaded: ${file.name}`;
+                document.getElementById('fileInfo').style.display = 'block';
+
+                // Update column selects
+                const columnSelects = ['filterColumnSelect', 'updateColumnSelect'];
+                columnSelects.forEach(selectId => {
+                    const select = document.getElementById(selectId);
+                    select.innerHTML = '<option value="">Select Column</option>';
+                    data.headers.forEach(header => {
+                        const option = document.createElement('option');
+                        option.value = header;
+                        option.textContent = header;
+                        select.appendChild(option);
+                    });
+                });
+            } catch (error) {
+                alert('Error uploading file');
+            } finally {
+                hideLoading();
+            }
+        });
+
+        function addFilterRow() {
+            const column = document.getElementById('filterColumnSelect').value;
+            if (!column) {
+                alert('Please select a column');
+                return;
+            }
+
+            const row = document.createElement('div');
+            row.className = 'filter-row';
+            row.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <span class="me-2">${column}</span>
+                    <select class="form-select me-2" style="width: 150px;">
+                        ${conditions.map(c => `<option value="${c.value}">${c.label}</option>`).join('')}
+                    </select>
+                    <input type="text" class="form-control me-2" placeholder="Value">
+                    <i class="bi bi-x-circle remove-btn" onclick="this.parentElement.parentElement.remove()"></i>
+                </div>
+            `;
+            document.getElementById('filterRows').appendChild(row);
+        }
+
+        function addUpdateRow() {
+            const column = document.getElementById('updateColumnSelect').value;
+            if (!column) {
+                alert('Please select a column');
+                return;
+            }
+
+            const row = document.createElement('div');
+            row.className = 'filter-row';
+            row.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <span class="me-2">${column}</span>
+                    <select class="form-select me-2" style="width: 150px;">
+                        ${conditions.map(c => `<option value="${c.value}">${c.label}</option>`).join('')}
+                    </select>
+                    <input type="text" class="form-control me-2" placeholder="Filter Value">
+                    <input type="text" class="form-control me-2" placeholder="New Value">
+                    <i class="bi bi-x-circle remove-btn" onclick="this.parentElement.parentElement.remove()"></i>
+                </div>
+            `;
+            document.getElementById('updateRows').appendChild(row);
+        }
+
+        async function processFilter() {
+            if (!currentFile) {
+                alert('Please upload a file first');
+                return;
+            }
+
+            const maxRecords = document.getElementById('filterMaxRecords').value;
+            const filters = [];
+            
+            document.querySelectorAll('#filterRows .filter-row').forEach(row => {
+                const column = row.querySelector('span').textContent;
+                const condition = row.querySelector('select').value;
+                const value = row.querySelector('input').value;
+                if (condition && value) {
+                    filters.push([column, condition, value]);
+                }
+            });
+
+            try {
+                showLoading();
+                const response = await fetch('/filter', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        filename: currentFile,
+                        filters: filters,
+                        max_records: maxRecords ? parseInt(maxRecords) : null
+                    })
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `filtered_${currentFile}`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    a.remove();
+                } else {
+                    const data = await response.json();
+                    alert(data.error || 'Error processing file');
+                }
+            } catch (error) {
+                alert('Error processing file');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function processUpdate() {
+            if (!currentFile) {
+                alert('Please upload a file first');
+                return;
+            }
+
+            const maxRecords = document.getElementById('updateMaxRecords').value;
+            const updates = [];
+            
+            document.querySelectorAll('#updateRows .filter-row').forEach(row => {
+                const column = row.querySelector('span').textContent;
+                const condition = row.querySelector('select').value;
+                const filterValue = row.querySelectorAll('input')[0].value;
+                const newValue = row.querySelectorAll('input')[1].value;
+                if (condition && filterValue) {
+                    updates.push([column, condition, filterValue, newValue]);
+                }
+            });
+
+            try {
+                showLoading();
+                const response = await fetch('/update', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        filename: currentFile,
+                        updates: updates,
+                        max_records: maxRecords ? parseInt(maxRecords) : null
+                    })
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `updated_${currentFile}`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    a.remove();
+                } else {
+                    const data = await response.json();
+                    alert(data.error || 'Error processing file');
+                }
+            } catch (error) {
+                alert('Error processing file');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+    </script>
+</body>
+</html> 
